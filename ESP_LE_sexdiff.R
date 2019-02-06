@@ -395,13 +395,6 @@ names(LE.all) <- c("ITA","ITA65","ESP","ESP65","GRC", "GRC65","PRT","PRT65","Yea
   
   ## 1. Smooth grid of age-specific death rates
   
-  # Data manipulation
-  
-  y <- unique(DxS_M$Year)
-  x <- unique(DxS_M$Age)
-  m <- length(x)
-  n <- length(y)
-  
   # 1.1 Extract deaths and exposure
   
   # Dx
@@ -416,6 +409,14 @@ names(LE.all) <- c("ITA","ITA65","ESP","ESP65","GRC", "GRC65","PRT","PRT65","Yea
   NxS_T = POP.ESP %>% filter(Year>=1915 & Year<=2016) %>% select(Year, Age, Total1)
   
   
+  # Data manipulation
+  
+  y <- unique(DxS_M$Year)
+  x <- unique(DxS_M$Age)
+  m <- length(x)
+  n <- length(y)
+  
+
   ## Deaths and exposures in a matrix format (age x year)
   
   # --- males
@@ -445,8 +446,8 @@ names(LE.all) <- c("ITA","ITA65","ESP","ESP65","GRC", "GRC65","PRT","PRT65","Yea
   # ----------------------------------------------------------------------------
   
   fitDx_M = Mort2Dsmooth(x = x, y = y, Z = D.Mal, offset = log(E.Mal),W=W)
-  fitDx_F = Mort2Dsmooth(x = ages, y = years, Z = D.Fem, offset = log(E.Fem),W=W)
-  fitDx_T = Mort2Dsmooth(x = ages, y = years, Z = D.Tot, offset = log(E.Tot), W=W)
+  fitDx_F = Mort2Dsmooth(x = x, y = y, Z = D.Fem, offset = log(E.Fem),W=W)
+  fitDx_T = Mort2Dsmooth(x = x, y = y, Z = D.Tot, offset = log(E.Tot), W=W)
   
   # plot raw age-specific mortality rates vs. smoothed rates
   # --------------------------------------------------------
@@ -497,6 +498,70 @@ names(LE.all) <- c("ITA","ITA65","ESP","ESP65","GRC", "GRC65","PRT","PRT65","Yea
   dim(f.Mal)
   # radix of the table by year
   colSums(f.Mal)
+  # rough estimate of the life expectancy at birth
+  plot(y, colSums(S.Mal) / 10, type = "b", las = 1, main = "e0")
+  
+  
+  ######################
+  # Build a life table #
+  ######################
+  
+  # ------------------------------- #  
+    N <- length(x)
+    Widths <- rep(delta, length(x))
+  # ------------------------------- #
+  
+  mal.smooth <- as.data.frame(rep(x,n))
+  
+  mal.smooth <- mal.smooth %>% mutate(Year=rep(min(y):max(y), times=1, each=111)) %>% 
+    # ax values (may be to be changed for the highest age groups)
+    mutate(ax = rep(Widths / 2, times=n))
+  # ------------------------------------------------------------
+  # ax for first year of life
+  
+  # ------------------------------------------------------------
+  # obtain the mx values from the smoothed hazard function
+  dim(h.Mal)
+  ## get the hx in the right format
+  h.new.Mal <- as.data.frame(h.Mal)
+  h.new.Mal <- data.frame(mx=unlist(h.new.Mal, use.names = FALSE))
+  # ------------------------------------------------------------
+  mal.smooth <- mal.smooth %>% bind_cols(h.new.Mal) %>% 
+    # qx
+    mutate(qx = (Widths * mx) / (1 + (Widths - ax) * mx)) 
+  # ------------------------------------------------------------
+  ## make the last qx=1 with a little trick which would not work with a data frame
+  qx <- matrix(mal.smooth$qx)
+  qx[1:(0+111)==(0+111)] <- 1
+  # ------------------------------------------------------------      
+  mal.smooth <- mal.smooth %>% select(-qx) %>%  bind_cols(as.data.frame(qx))
+  colnames(mal.smooth)[5] <- "qx"
+  mal.smooth <- mal.smooth %>% mutate(qx = ifelse(qx>1,1,qx)) %>% 
+    ## add the px
+    mutate(px = 1 - qx)
+  # ------------------------------------------------------------   
+  ## matrix operations: sum over the columns of the estimated f-values to obtain
+  ## the base/radix for the life table
+  radix.mat <- as.data.frame(matrix(data=colSums (f.Mal, na.rm = FALSE, dims = 1), nrow = 1)) %>% 
+    ## now making filling dummie values in between to make it the same length as the data frame
+    bind_rows(as.data.frame(matrix(data = 0,nrow = 110, ncol = 102))) 
+  ## stack them in order and delete the extra variable
+  radix.mat <- stack(radix.mat) %>% select(-ind)
+  # ------------------------------------------------------------   
+  mal.smooth <- mal.smooth %>% bind_cols(as.data.frame(radix.mat))
+  colnames(mal.smooth)[7] <- "lx"
+  ## use the dplyr group_by command to calculate the rest of the lx from the px
+  mal.smooth <- mal.smooth %>% group_by(Year) %>% mutate(lx = c(lx[1],lx[1] * cumprod(px))[1:N]) %>% 
+    ## dx values from the lx (alternatively from the smoothing algorithm)
+    group_by(Year) %>%  mutate(dx = c(-diff(lx),lx[N])) %>% 
+    ## Create the Lx from the lx and the dx
+    group_by(Year) %>% mutate(Lx = c(Widths[1:(N - 1)] * lx[2:N] + ax[1:(N - 1)] * dx[1:(N - 1)], lx[N] * ax[N])) %>% 
+    ## account for infinite Lx and NA
+    mutate(Lx = ifelse(is.infinite(Lx),1,Lx)) %>% mutate(Lx = ifelse(is.na(Lx),0,Lx)) %>% 
+    ## Calculate the Tx from the Lx
+    group_by(Year) %>% mutate(Tx = rev(cumsum(rev(Lx)))) %>% 
+    ## Finally obtain the life expectancy from the Tx and lx
+    group_by(Year) %>% mutate(ex = Tx / lx)
   
 ### ------------------------------------------------------------------------------------------------ ### 
   
@@ -584,12 +649,65 @@ dim(f.Tot)
 # radix of the table by year
 colSums(f.Tot)
 
+tot.smooth <- as.data.frame(rep(x,n))
 
+tot.smooth <- tot.smooth %>% mutate(Year=rep(min(y):max(y), times=1, each=111)) %>% 
+  # ax values (may be to be changed for the highest age groups)
+  mutate(ax = rep(Widths / 2, times=n))
+# ------------------------------------------------------------
+# ax for first year of life
+
+# ------------------------------------------------------------
+# obtain the mx values from the smoothed hazard function
+dim(h.Tot)
+## get the hx in the right format
+h.new.Tot <- as.data.frame(h.Tot)
+h.new.Tot <- data.frame(mx=unlist(h.new.Tot, use.names = FALSE))
+# ------------------------------------------------------------
+tot.smooth <- tot.smooth %>% bind_cols(h.new.Tot) %>% 
+  # qx
+  mutate(qx = (Widths * mx) / (1 + (Widths - ax) * mx)) 
+# ------------------------------------------------------------
+## make the last qx=1 with a little trick which would not work with a data frame
+qx <- matrix(tot.smooth$qx)
+qx[1:(0+111)==(0+111)] <- 1
+# ------------------------------------------------------------      
+tot.smooth <- tot.smooth %>% select(-qx) %>%  bind_cols(as.data.frame(qx))
+colnames(tot.smooth)[5] <- "qx"
+tot.smooth <- tot.smooth %>% mutate(qx = ifelse(qx>1,1,qx)) %>% 
+  ## add the px
+  mutate(px = 1 - qx)
+# ------------------------------------------------------------   
+## matrix operations: sum over the columns of the estimated f-values to obtain
+## the base/radix for the life table
+radix.mat <- as.data.frame(matrix(data=colSums (f.Tot, na.rm = FALSE, dims = 1), nrow = 1)) %>% 
+  ## now making filling dummie values in between to make it the same length as the data frame
+  bind_rows(as.data.frame(matrix(data = 0,nrow = 110, ncol = 102))) 
+## stack them in order and delete the extra variable
+radix.mat <- stack(radix.mat) %>% select(-ind)
+# ------------------------------------------------------------   
+tot.smooth <- tot.smooth %>% bind_cols(as.data.frame(radix.mat))
+colnames(tot.smooth)[7] <- "lx"
+## use the dplyr group_by command to calculate the rest of the lx from the px
+tot.smooth <- tot.smooth %>% group_by(Year) %>% mutate(lx = c(lx[1],lx[1] * cumprod(px))[1:N]) %>% 
+  ## dx values from the lx (alternatively from the smoothing algorithm)
+  group_by(Year) %>%  mutate(dx = c(-diff(lx),lx[N])) %>% 
+  ## Create the Lx from the lx and the dx
+  group_by(Year) %>% mutate(Lx = c(Widths[1:(N - 1)] * lx[2:N] + ax[1:(N - 1)] * dx[1:(N - 1)], lx[N] * ax[N])) %>% 
+  ## account for infinite Lx and NA
+  mutate(Lx = ifelse(is.infinite(Lx),1,Lx)) %>% mutate(Lx = ifelse(is.na(Lx),0,Lx)) %>% 
+  ## Calculate the Tx from the Lx
+  group_by(Year) %>% mutate(Tx = rev(cumsum(rev(Lx)))) %>% 
+  ## Finally obtain the life expectancy from the Tx and lx
+  group_by(Year) %>% mutate(ex = Tx / lx)
+
+  # Change names for ages
+  colnames(tot.smooth)[1] <- "Age"
+  
 ### ------------------------------------------------------------------------------------------------ ###   
 ### ------------------------------------------------------------------------------------------------ ###
-
-
-
+### ------------------------------------------------------------------------------------------------ ###   
+### ------------------------------------------------------------------------------------------------ ###
 
 
   par(mfrow = c(1, 2))
@@ -640,13 +758,30 @@ colSums(f.Tot)
   
   
   
+  ### ------------------------------------------------------------------------------------------------ ###   
+  ### ------------------------------------------------------------------------------------------------ ###
+  
+  ### Plot of distributions of deaths (life tables for both sexes)
+  ################################################################
+  
+  # ---- #
+  ggplot_dx <- tot.smooth %>% ggplot(aes(x=Age,y=dx, group=Year, colour=Year)) +
+    geom_line() +
+    scale_y_continuous(name = "Distributions of deaths") +
+    scale_x_continuous(name = "Age") +
+    scale_colour_gradient(name= " ",low = "white", high = "black") +
+    theme_bw()
+  
+  # move legend
+  ggplot_dx <-ggplot_dx + theme(legend.position = c(0.85, 0.80))
   
   
   
   
   
   
-  
+  ### ------------------------------------------------------------------------------------------------ ###   
+  ### ------------------------------------------------------------------------------------------------ ###
   
   
   
