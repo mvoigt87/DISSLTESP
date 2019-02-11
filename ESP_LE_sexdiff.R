@@ -617,6 +617,7 @@ cols <- grey(ncol(S.Fem):1/ncol(S.Fem))
 #### TOTAL ###
 ##############
 
+
 # survival function by year (beautiful ;) )
 delta <- 1
 Bxs.Tot <- fitDx_T$Bx
@@ -650,6 +651,11 @@ dim(f.Tot)
 colSums(f.Tot)
 
 tot.smooth <- as.data.frame(rep(x,n))
+
+# ------------------------------- #  
+N <- length(x)
+Widths <- rep(delta, length(x))
+# ------------------------------- #
 
 tot.smooth <- tot.smooth %>% mutate(Year=rep(min(y):max(y), times=1, each=111)) %>% 
   # ax values (may be to be changed for the highest age groups)
@@ -767,13 +773,13 @@ tot.smooth <- tot.smooth %>% group_by(Year) %>% mutate(lx = c(lx[1],lx[1] * cump
   # ---- #
   ggplot_dx <- tot.smooth %>% ggplot(aes(x=Age,y=dx, group=Year, colour=Year)) +
     geom_line() +
-    scale_y_continuous(name = "Distributions of deaths") +
+    scale_y_continuous(name = "Distributions of deaths", limit = c(0, 0.06)) +
     scale_x_continuous(name = "Age") +
     scale_colour_gradient(name= " ",low = "white", high = "black") +
     theme_bw()
   
   # move legend
-  ggplot_dx <-ggplot_dx + theme(legend.position = c(0.85, 0.80))
+  ggplot_dx <-ggplot_dx + theme(legend.position = c(0.9, 0.80))
   
   
   
