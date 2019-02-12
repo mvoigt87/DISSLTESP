@@ -179,22 +179,26 @@ summary(LT.ESP)
   
   mal.smooth <- as.data.frame(rep(x,n))
   
+  # Change names for ages
+  colnames(mal.smooth)[1] <- "Age"
+  
   mal.smooth <- mal.smooth %>% mutate(Year=rep(min(y):max(y), times=1, each=111)) %>% 
     # ax values (may be to be changed for the highest age groups)
     mutate(ax = rep(Widths / 2, times=n))
-  # ------------------------------------------------------------
-  # ax for first year of life
-  
-  # ------------------------------------------------------------
   # obtain the mx values from the smoothed hazard function
   dim(h.Mal)
   ## get the hx in the right format
   h.new.Mal <- as.data.frame(h.Mal)
   h.new.Mal <- data.frame(mx=unlist(h.new.Mal, use.names = FALSE))
   # ------------------------------------------------------------
-  mal.smooth <- mal.smooth %>% bind_cols(h.new.Mal) %>% 
-    # qx
-    mutate(qx = (Widths * mx) / (1 + (Widths - ax) * mx)) 
+  mal.smooth <- mal.smooth %>% bind_cols(h.new.Mal) 
+  # ------------------------------------------------------------
+  # ax for first year of life (Based on Andreev, Kingkade 2015)
+  mal.smooth$ax[ mal.smooth$Age==0] <- ifelse( mal.smooth$mx[ mal.smooth$Age==0]<=0.023, 0.14929 - 1.99545* mal.smooth$mx[ mal.smooth$Age==0], 
+                       ifelse( mal.smooth$mx[mal.smooth$Age==0]<=0.08307, 0.02832 + 3.26021* mal.smooth$mx[ mal.smooth$Age==0], 0.29915))
+  # ------------------------------------------------------------
+  # qx
+  mal.smooth <- mal.smooth %>% mutate(qx = (Widths * mx) / (1 + (Widths - ax) * mx)) 
   # ------------------------------------------------------------
   ## make the last qx=1 with a little trick which would not work with a data frame
   qx <- matrix(mal.smooth$qx)
@@ -228,9 +232,7 @@ summary(LT.ESP)
     group_by(Year) %>% mutate(Tx = rev(cumsum(rev(Lx)))) %>% 
     ## Finally obtain the life expectancy from the Tx and lx
     group_by(Year) %>% mutate(ex = Tx / lx)
-  
-  # Change names for ages
-  colnames(mal.smooth)[1] <- "Age"
+
   
 ### ------------------------------------------------------------------------------------------------ ### 
   
@@ -286,6 +288,9 @@ Widths <- rep(delta, length(x))
 
 fem.smooth <- as.data.frame(rep(x,n))
 
+# Change names for ages
+colnames(fem.smooth)[1] <- "Age"
+
 fem.smooth <- fem.smooth %>% mutate(Year=rep(min(y):max(y), times=1, each=111)) %>% 
   # ax values (may be to be changed for the highest age groups)
   mutate(ax = rep(Widths / 2, times=n))
@@ -299,9 +304,16 @@ dim(h.Fem)
 h.new.Fem <- as.data.frame(h.Fem)
 h.new.Fem <- data.frame(mx=unlist(h.new.Fem, use.names = FALSE))
 # ------------------------------------------------------------
-fem.smooth <- fem.smooth %>% bind_cols(h.new.Fem) %>% 
+fem.smooth <- fem.smooth %>% bind_cols(h.new.Fem)
+
+# ------------------------------------------------------------
+# ax for first year of life (Based on Andreev, Kingkade 2015)
+fem.smooth$ax[fem.smooth$Age==0] <- ifelse(fem.smooth$mx[fem.smooth$Age==0]<=0.023, 0.14903 - 2.05527 * fem.smooth$mx[fem.smooth$Age==0], 
+                                             ifelse( fem.smooth$mx[fem.smooth$Age==0]<=0.08307, 0.04667 + 3.88089 * fem.smooth$mx[fem.smooth$Age==0], 0.31411))
+# ------------------------------------------------------------
+
   # qx
-  mutate(qx = (Widths * mx) / (1 + (Widths - ax) * mx)) 
+fem.smooth <- fem.smooth %>%mutate(qx = (Widths * mx) / (1 + (Widths - ax) * mx)) 
 # ------------------------------------------------------------
 ## make the last qx=1 with a little trick which would not work with a data frame
 qx <- matrix(fem.smooth$qx)
@@ -336,8 +348,6 @@ fem.smooth <- fem.smooth %>% group_by(Year) %>% mutate(lx = c(lx[1],lx[1] * cump
   ## Finally obtain the life expectancy from the Tx and lx
   group_by(Year) %>% mutate(ex = Tx / lx)
 
-# Change names for ages
-colnames(fem.smooth)[1] <- "Age"
 
 ### ------------------------------------------------------------------------------------------------ ###   
 ### ------------------------------------------------------------------------------------------------ ###   
@@ -382,6 +392,9 @@ colSums(f.Tot)
 
 tot.smooth <- as.data.frame(rep(x,n))
 
+# Change names for ages
+colnames(tot.smooth)[1] <- "Age"
+
 # ------------------------------- #  
 N <- length(x)
 Widths <- rep(delta, length(x))
@@ -390,10 +403,6 @@ Widths <- rep(delta, length(x))
 tot.smooth <- tot.smooth %>% mutate(Year=rep(min(y):max(y), times=1, each=111)) %>% 
   # ax values (may be to be changed for the highest age groups)
   mutate(ax = rep(Widths / 2, times=n))
-# ------------------------------------------------------------
-# ax for first year of life
-
-# ------------------------------------------------------------
 # obtain the mx values from the smoothed hazard function
 dim(h.Tot)
 ## get the hx in the right format
@@ -401,8 +410,13 @@ h.new.Tot <- as.data.frame(h.Tot)
 h.new.Tot <- data.frame(mx=unlist(h.new.Tot, use.names = FALSE))
 # ------------------------------------------------------------
 tot.smooth <- tot.smooth %>% bind_cols(h.new.Tot) %>% 
+
+# ------------------------------------------------------------
+# ax for first year of life ( needs values for males and females)
+
+# ------------------------------------------------------------
   # qx
-  mutate(qx = (Widths * mx) / (1 + (Widths - ax) * mx)) 
+mutate(qx = (Widths * mx) / (1 + (Widths - ax) * mx)) 
 # ------------------------------------------------------------
 ## make the last qx=1 with a little trick which would not work with a data frame
 qx <- matrix(tot.smooth$qx)
@@ -437,8 +451,6 @@ tot.smooth <- tot.smooth %>% group_by(Year) %>% mutate(lx = c(lx[1],lx[1] * cump
   ## Finally obtain the life expectancy from the Tx and lx
   group_by(Year) %>% mutate(ex = Tx / lx)
 
-  # Change names for ages
-  colnames(tot.smooth)[1] <- "Age"
   
 ### ------------------------------------------------------------------------------------------------ ###   
 ### ------------------------------------------------------------------------------------------------ ###
