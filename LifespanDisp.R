@@ -30,9 +30,9 @@ library(latex2exp)
 
 # load data
 
-mal.smooth <- load("MLT_HMD.Rdata")
-fem.smooth <- load("FLT_HMD.Rdata")
-tot.smooth <- load("TLT_HMD.Rdata")
+load("MLT_HMD.Rdata")
+load("FLT_HMD.Rdata")
+load("TLT_HMD.Rdata") # doublecheck
 
 ### ------------------------------------------------------------------------------------------------ ###   
 ### ------------------------------------------------------------------------------------------------ ###
@@ -76,6 +76,9 @@ colnames(Modes_tot)[1] <- "Year"
 ### Plot of distributions of deaths (life tables for both sexes)
 ################################################################
 
+textmod1920 <- "Mode 1920"
+textmod2010 <- "Mode 2010"
+
 # ---- #
 ggplot_dx <- tot.smooth %>% ggplot(aes(x=Age,y=dx, group=Year, colour=Year)) +
   geom_line() +
@@ -83,6 +86,8 @@ ggplot_dx <- tot.smooth %>% ggplot(aes(x=Age,y=dx, group=Year, colour=Year)) +
   scale_x_continuous(name = "Age") +
   scale_colour_gradient(name= " ",low = "white", high = "black") +
   geom_vline(xintercept=c(75.00145, 89.00405), linetype='dashed', alpha=0.75) +
+  geom_text(aes(x = 73, y = 0.05, label = textmod1920, angle=90)) +
+  geom_text(aes(x = 87, y = 0.05, label = textmod2010, angle=90)) +
   theme_bw()
 
 # move legend
@@ -123,66 +128,77 @@ edag_both_plot <- edag_both %>% ggplot(aes(x=Year)) +
                   geom_line(aes(y = edag_M, color="Male")) + 
                   geom_line(aes(y = edag_F, color="Female")) +
                   scale_y_continuous(name = TeX('$e^\\dagger$')) +
-                  scale_color_manual(name=" ", values = c("black", "grey65")) +
+                  scale_color_manual(name=" ", values = c("black", "grey65"), guide=F) +
                   theme_bw()
 
-edag_both_plot <- edag_both_plot + theme(legend.position = c(0.8, 0.8))
+# edag_both_plot <- edag_both_plot + theme(legend.position = c(0.8, 0.8))
 
 
-# SD time series
-# ------------------- #
-      # 
-      # ## Function
-      # ## attempt to copy Cheung et al. 2009
-      # SD.plus.FUN <- function(x){
-      #   
-      #   # function by Cheung et al.
-      #   a <- x$Age[which.max(x$dx)]
-      #   rank <- order(x$dx, decreasing = TRUE)
-      #   #a <- x$Age[rank[which(rank > 100)][1]]
-      #   M <- a + ((x$dx[a]-x$dx[a-1])/(x$dx[a]-x$dx[a-1])+(x$dx[a]-x$dx[a+1]))
-      #   b <- seq(ceiling(M),last(x$Age),0.1)
-      #   part.one <- c(rep(0,length(b)))
-      #   
-      #   ## for loop (for now)
-      #   for (k in b) {
-      #     part.one <- (sum(b[k]-M))^2/length(b)
-      #   }
-      #   SD.plus <- sqrt(part.one)
-      #   ### !!! For comparison with other estimates - IF decimal ages are used
-      #   #SD.plus <- SD.plus*10
-      #   return(SD.plus)
-      # }
-      # 
-      # 
+# Function to estimate the standard deviation around the modal age at death
+# ------------------------------------------------------------------------- #
+
+# Literature Canudas Romo (2008)
+      
+sdfun <- function(x, trun = 0){
+  
+  if(is.numeric(trun)){
+    
+    x <- x[x$Age >= trun,]
+    
+  }else{
+    
+    mode <- MDA.fun(x)
+    
+    x <- x[na.omit(x$Age),]
+    
+  }
+  
+  # mean <- sum(x$Age * x$dx) / sum(x$dx)
+  
+  sdev <- sqrt(sum((x$Age - mode)^2 * x$dx) / sum(x$dx))
+  
+  return(sdev)
+  
+}
       # # To avoid a second mode at age zero
       # 
       # mal.smooth <- mal.smooth %>% filter(Age>=5)
       # fem.smooth <- fem.smooth %>% filter(Age>=5)
       # 
-      # # males
-      # 
-      # sdplus_M <- by(data = mal.smooth, INDICES = mal.smooth$Year, FUN = SD.plus.FUN)
-      # 
-      # # females
-      # sdplus_F <- by(data = fem.smooth, INDICES = fem.smooth$Year, FUN = SD.plus.FUN)
-      # 
-      # 
+
+
+### Time Series ###
+### ----------- ###
+
+      # males
+      sd_M <- by(data = mal.smooth, INDICES = mal.smooth$Year, FUN = sdfun)
+
+
+      # females
+      sd_F <- by(data = fem.smooth, INDICES = fem.smooth$Year, FUN = sdfun)
+      
+      
       # # Plot the SD+
       # # -----------
-      # 
-      # sdplus_both <- as.data.frame(cbind(unique(mal.smooth$Year),sdplus_M, sdplus_F))
-      # 
-      # colnames(sdplus_both)[1] <- "Year"
-      # 
-      # sdplus_both_plot <- sdplus_both %>% ggplot(aes(x=Year)) +
-      #   geom_line(aes(y = sdplus_M, color="Male")) + 
-      #   geom_line(aes(y = sdplus_F, color="Female")) +
-      #   scale_y_continuous(name = "SD(M+)") +
-      #   scale_color_manual(name=" ", values = c("black", "grey65")) +
-      #   theme_bw()
-      # 
-      # sdplus_both_plot <- sdplus_both_plot + theme(legend.position = c(0.2, 0.8))
+
+      sd_both <- as.data.frame(cbind(unique(mal.smooth$Year),sd_M, sd_F))
+
+      colnames(sd_both)[1] <- "Year"
+
+      sd_both_plot <- sd_both %>% ggplot(aes(x=Year)) +
+        geom_line(aes(y = sd_M, color="Male")) +
+        geom_line(aes(y = sd_F, color="Female")) +
+        scale_y_continuous(name = "SDM") +
+        scale_color_manual(name=" ", values = c("black", "grey65")) +
+        theme_bw()
+
+      sd_both_plot <- sd_both_plot + theme(legend.position = c(0.8, 0.8))+
+        
+        
+#### Combine both measures in one graph
+        
+multiplot(edag_both_plot, sd_both_plot)
+        
 
 
 ##########################################################################################
