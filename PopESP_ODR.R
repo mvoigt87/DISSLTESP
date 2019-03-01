@@ -1,6 +1,11 @@
 # ---------------------- 
 # Population Development
-# ---------------------- 
+# ----------------------
+
+# Aging indexes
+
+# 1. ODR - Old Age Dependency Ratio
+# 2. Prospective Aging
 
 # set working directory
 dir()
@@ -27,6 +32,10 @@ library(RColorBrewer)
 
 
 POP.ESP <- readHMD("ESP_pop.txt", fixup = T)
+
+# load life table for prospective aging
+
+load("TLT_HMD.Rdata") # doublecheck
 
 
 ### --------------
@@ -60,22 +69,88 @@ POP.ODR <- POP.ODR %>% mutate(ODR = `65_pop`/`Pop15_64`)
 
 ### ------------------------------------------------------------------------------------------------- ###
 # Graph Pop 65 +
-per65_graph <- POP.ESP_65 %>% filter(Year>1970) %>% ggplot() + 
+per65_graph <- POP.ESP_65 %>% filter(Year>1950) %>% ggplot() + 
   geom_line(aes(x=Year, y=Per65)) +
   geom_point(aes(x = Year, y = Per65)) +
-  scale_x_continuous(breaks = round(seq(1970, max(POP.ESP_65$Year), by = 10),1)) + 
+  scale_x_continuous(breaks = round(seq(1950, max(POP.ESP_65$Year), by = 10),1)) + 
   theme_bw()
 per65_graph <- per65_graph + scale_y_continuous(labels = percent, name = "Proportion Population age 65+")
 ### ------------------------------------------------------------------------------------------------- ###
 ### ------------------------------------------------------------------------------------------------- ###
 # ODR
-ODR_plot <- POP.ODR %>% filter(Year>1970) %>% ggplot() + 
+ODR_plot <- POP.ODR %>% filter(Year>1950) %>% ggplot() + 
   geom_line(aes(x=Year, y=ODR)) +
   geom_point(aes(x = Year, y = ODR)) +
-  scale_x_continuous(breaks = round(seq(1970, max(POP.ESP_65$Year), by = 10),1)) + 
+  scale_x_continuous(breaks = round(seq(1950, max(POP.ESP_65$Year), by = 10),1)) + 
   scale_y_continuous(name = "ODR (D)", breaks = round(seq(0.1, 0.35, by = 0.025),3)) +
   theme_bw()
-ODR_plot
+ODR_plot <- ODR_plot + theme(axis.text=element_text(size=12),
+                axis.title=element_text(size=12,face="bold"))
+
+
 ### ------------------------------------------------------------------------------------------------- ###
 
-multiplot(per65_graph,ODR_plot)
+### Prospective Aging Measures
+### For comparison use the median age
+POP.ESP2 <- POP.ESP %>% filter(Year>=1950)
+
+# function to calculate the median age of the population
+
+MEDIAN.fun <- function(x){
+  x$Age[max(which(cumsum(x$Total1)/sum(x$Total1)<0.5)+1)] 
+}
+
+
+median.age <- by(data = POP.ESP2, INDICES = POP.ESP2$Year, FUN = MEDIAN.fun)
+
+median.age <- as.data.frame(cbind(unique(tot.smooth$Year),median.age))
+colnames(median.age)[1] <- "Year"
+
+# Define index year (i.e. 1970) and "retrospective" age with desired remaining life expectancy
+
+# Cut at INDEX YEAR 1970
+tot.smooth <- tot.smooth %>% filter(Year>=1950)
+
+
+# Start at the median age at the INDEX YEAR with the time line of the prospective age measures
+
+X <- median.age$median.age[median.age$Year==1950] 
+X # 27
+
+# The index value (life expectancy in the INDEX YEAR and the median age => to calculate the median prospective age)
+tot.smooth$ex[tot.smooth$Year==1950 & tot.smooth$Age==27]
+# 43.65843
+
+# insert the number in the function that finds the nearest value 
+
+NEAR.fun <- function(x){
+  which.min(abs(x$ex- 43.65843)) }
+
+prosp.age <- by(data = tot.smooth, INDICES = tot.smooth$Year, FUN = NEAR.fun)
+
+prosp.age <- as.data.frame(cbind(unique(tot.smooth$Year),prosp.age))
+colnames(prosp.age)[1] <- "Year"
+
+summary(prosp.age$prosp.age)
+
+# Prospective Aging
+PA_plot <- prosp.age %>% ggplot() + 
+  geom_line(aes(x=Year, y=prosp.age, linetype="Prospective Median Age")) +
+  geom_line(aes(x=median.age$Year, y=median.age$median.age, linetype="Median Age")) +
+  #geom_point(aes(x = median.age$Year, y = prosp.age)) +
+  scale_x_continuous(breaks = round(seq(1950, max(median.age$Year), by = 10),1)) + 
+  scale_y_continuous(name = "Prospective Age", breaks = seq(30, 45, by = 2.5)) +
+  scale_linetype(name= " ") +
+  theme_bw()
+PA_plot <- PA_plot + theme(legend.position = c(0.2, 0.80)) + theme(axis.text=element_text(size=12),
+                                                                  axis.title=element_text(size=12,face="bold"))
+
+
+
+### ------------------------------------------------------------------------------------------------- ###
+
+multiplot(ODR_plot, PA_plot)
+### ------------------------------------------------------------------------------------------------- ###
+
+
+
