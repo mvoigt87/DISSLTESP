@@ -495,7 +495,10 @@ tot.smooth <- tot.smooth %>% group_by(Year) %>% mutate(lx = c(lx[1],lx[1] * cump
                  scale_colour_gradient(name= " ",low = "white", high = "black") +
                  theme_bw()
   # move legend
-  ggplot_Surv <-ggplot_Surv + theme(legend.position = c(0.1, 0.2))
+  ggplot_Surv <-ggplot_Surv + theme(legend.position = c(0.1, 0.2)) + theme(axis.text=element_text(size=12),
+                                                                          axis.title=element_text(size=12,face="bold"))
+  
+  
     
   
 #### %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% ####

@@ -211,7 +211,8 @@ plotLE_zero <- LE.all_0 %>% ggplot() +
   scale_colour_manual(values = c("grey20","grey35", "grey55","grey75", "black"), name="", guide=F) +
   scale_alpha_discrete(range = c(0.25, 0.85), name="", guide=F) +
   theme_bw()
-plotLE_zero
+plotLE_zero <- plotLE_zero + theme(axis.text=element_text(size=12),
+                   axis.title=element_text(size=12,face="bold"))
 
 # ----------------------------------------------------------------------------------- #
 # changing colors and legends
@@ -240,7 +241,8 @@ plotLE_65 <- LE.all_65 %>% ggplot() +
   theme_bw()
 
 plotLE_65 <- plotLE_65 + theme(legend.position = c(0.85, 0.25)) + 
-  scale_shape_discrete(guide=FALSE)
+  scale_shape_discrete(guide=FALSE) + theme(axis.text=element_text(size=12),
+                                           axis.title=element_text(size=12,face="bold"))
 
 # Combine Plots
 multiplot(plotLE_zero,plotLE_65)

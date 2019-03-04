@@ -91,7 +91,8 @@ ggplot_dx <- tot.smooth %>% ggplot(aes(x=Age,y=dx, group=Year, colour=Year)) +
   theme_bw()
 
 # move legend
-ggplot_dx <-ggplot_dx + theme(legend.position = c(0.15, 0.80))
+ggplot_dx <- ggplot_dx + theme(legend.position = c(0.15, 0.80)) + theme(axis.text=element_text(size=12),
+                                                                        axis.title=element_text(size=12,face="bold"))
 
 
 
@@ -131,7 +132,9 @@ edag_both_plot <- edag_both %>% ggplot(aes(x=Year)) +
                   scale_color_manual(name=" ", values = c("black", "grey65"), guide=F) +
                   theme_bw()
 
-# edag_both_plot <- edag_both_plot + theme(legend.position = c(0.8, 0.8))
+ edag_both_plot <- edag_both_plot + theme(axis.text=element_text(size=12),
+                                          axis.title=element_text(size=12,face="bold"))
+ 
 
 
 # Function to estimate the standard deviation around the modal age at death
@@ -192,7 +195,9 @@ sdfun <- function(x, trun = 0){
         scale_color_manual(name=" ", values = c("black", "grey65")) +
         theme_bw()
 
-      sd_both_plot <- sd_both_plot + theme(legend.position = c(0.8, 0.8))+
+      sd_both_plot <- sd_both_plot + theme(legend.position = c(0.8, 0.8)) + theme(axis.text=element_text(size=12),
+                                                                                    axis.title=element_text(size=12,face="bold"))
+      
         
         
 #### Combine both measures in one graph

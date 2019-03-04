@@ -80,7 +80,7 @@ per65_graph <- per65_graph + scale_y_continuous(labels = percent, name = "Propor
 # ODR
 ODR_plot <- POP.ODR %>% filter(Year>1950) %>% ggplot() + 
   geom_line(aes(x=Year, y=ODR)) +
-  geom_point(aes(x = Year, y = ODR)) +
+ # geom_point(aes(x = Year, y = ODR)) +
   scale_x_continuous(breaks = round(seq(1950, max(POP.ESP_65$Year), by = 10),1)) + 
   scale_y_continuous(name = "ODR (D)", breaks = round(seq(0.1, 0.35, by = 0.025),3)) +
   theme_bw()
@@ -89,8 +89,93 @@ ODR_plot <- ODR_plot + theme(axis.text=element_text(size=12),
 
 
 ### ------------------------------------------------------------------------------------------------- ###
-
+### ------------------------------------------------------------------------------------------------- ###
 ### Prospective Aging Measures
+### ------------------------------------------------------------------------------------------------- ###
+
+## Prospective ODR
+
+# Step 1 - Extract remaining life expectancy at the index year 1950
+
+# Cut at INDEX YEAR 1950
+tot.smooth <- tot.smooth %>% filter(Year>=1950)
+
+tot.smooth$ex[tot.smooth$Year==1950 & tot.smooth$Age==15]
+tot.smooth$ex[tot.smooth$Year==1950 & tot.smooth$Age==65]
+# e_15 = 54.02391
+# e_65 = 13.18478
+
+# Step 2 - Calculate the prospective age based on the remaining life exspectancy for the rest of the years
+
+NEAR.fun <- function(x){
+  which.min(abs(x$ex - 13.18478)) }
+
+prosp.age65 <- by(data = tot.smooth, INDICES = tot.smooth$Year, FUN = NEAR.fun)
+prosp.age65 <- as.data.frame(cbind(unique(tot.smooth$Year),prosp.age65))
+colnames(prosp.age65)[1] <- "Year"
+
+# Calculate the ODR (prospective)
+
+# Pop Prospective ODR
+
+### Population between 15 and Prospective Age
+
+POP.15_PA <- POP.ESP %>% filter(Year>1949) %>%  filter(Age>15) %>% select(Total1, Year, Age) 
+
+for (i in 1950:2016){
+  POP.15_PA$Total1[POP.15_PA$Year==i] <- subset(POP.15_PA$Total1[POP.15_PA$Year==i],
+                                                POP.15_PA$Age<prosp.age65$prosp.age65[prosp.age65$Year==i])
+  }
+
+# Now make the rows where the population == 0
+
+POP.15_PA <- POP.15_PA %>% mutate(Total1 = ifelse(is.na(Total1), 0, Total1))
+
+# Now aggregate the values by year
+
+POP.15_PA <- aggregate(x=POP.15_PA$Total1, by=list(POP.15_PA$Year), FUN=sum)
+names(POP.15_PA) <- c("Year","Pop15_PA")
+
+### Population older than Prospective Age
+POP.PA <- POP.ESP %>% filter(Year>1949) %>% select(Total1, Year, Age)
+for (j in 1950:2016){
+  POP.PA$Total1[POP.PA$Year==j] <- subset(POP.PA$Total1[POP.PA$Year==i],
+                                                POP.PA$Age>=prosp.age65$prosp.age65[prosp.age65$Year==i])
+}
+# Now make the rows where the population == 0
+POP.PA <- POP.PA %>% mutate(Total1 = ifelse(is.na(Total1), 0, Total1))
+
+# Now aggregate the values by year
+
+POP.PA <- aggregate(x=POP.PA$Total1, by=list(POP.PA$Year), FUN=sum)
+names(POP.PA) <- c("Year","Pop_PA")
+
+
+# Combine and calculate the percentage
+PROP.ODR <- left_join(POP.15_PA, POP.PA, by="Year")
+PROP.ODR <- PROP.ODR %>% mutate(PODR = `Pop_PA`/`Pop15_PA`)
+
+
+### ------------------------------------------------------------------------------------------------- ###
+# ODR + PROP ODR
+PRODR_plot <- POP.ODR %>% filter(Year>1949) %>% ggplot() + 
+  geom_line(aes(x=Year, y=ODR, linetype="Classic OADR")) +
+  geom_line(aes(x=PROP.ODR$Year, y=PROP.ODR$PODR, linetype="Prospective OADR")) +
+  # geom_point(aes(x = Year, y = ODR)) +
+  scale_x_continuous(breaks = round(seq(1950, max(POP.ESP_65$Year), by = 10),1)) + 
+  scale_y_continuous(name = "Dependency Ratios", breaks = round(seq(0.1, 0.35, by = 0.025),3)) +
+  scale_linetype(name= " ") +
+  theme_bw()
+PRODR_plot <- PRODR_plot + theme(axis.text=element_text(size=12),
+                             axis.title=element_text(size=12,face="bold")) + theme(legend.position = c(0.2, 0.85))
+
+
+### ------------------------------------------------------------------------------------------------- ###
+### ------------------------------------------------------------------------------------------------- ###
+### ------------------------------------------------------------------------------------------------- ###
+
+
+
 ### For comparison use the median age
 POP.ESP2 <- POP.ESP %>% filter(Year>=1950)
 
@@ -106,11 +191,7 @@ median.age <- by(data = POP.ESP2, INDICES = POP.ESP2$Year, FUN = MEDIAN.fun)
 median.age <- as.data.frame(cbind(unique(tot.smooth$Year),median.age))
 colnames(median.age)[1] <- "Year"
 
-# Define index year (i.e. 1970) and "retrospective" age with desired remaining life expectancy
-
-# Cut at INDEX YEAR 1970
-tot.smooth <- tot.smooth %>% filter(Year>=1950)
-
+# Define index year (i.e. 1950) and "retrospective" age with desired remaining life expectancy
 
 # Start at the median age at the INDEX YEAR with the time line of the prospective age measures
 
@@ -138,8 +219,8 @@ PA_plot <- prosp.age %>% ggplot() +
   geom_line(aes(x=Year, y=prosp.age, linetype="Prospective Median Age")) +
   geom_line(aes(x=median.age$Year, y=median.age$median.age, linetype="Median Age")) +
   #geom_point(aes(x = median.age$Year, y = prosp.age)) +
-  scale_x_continuous(breaks = round(seq(1950, max(median.age$Year), by = 10),1)) + 
-  scale_y_continuous(name = "Prospective Age", breaks = seq(30, 45, by = 2.5)) +
+  scale_x_continuous(breaks = round(seq(1950, 2016, by = 10),1)) + 
+  scale_y_continuous(name = "Prospective Age", breaks = seq(25, 45, by = 2.5)) +
   scale_linetype(name= " ") +
   theme_bw()
 PA_plot <- PA_plot + theme(legend.position = c(0.2, 0.80)) + theme(axis.text=element_text(size=12),
